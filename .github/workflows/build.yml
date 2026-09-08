@@ -39,42 +39,84 @@ jobs:
         mkdir -p TMessagesProj/config
         rm -f TMessagesProj/config/release.keystore
         keytool -genkey -v -keystore TMessagesProj/config/release.keystore \
-          -alias androidkey \
+          -alias cherrygramkey \
           -keyalg RSA \
           -keysize 2048 \
           -validity 10000 \
           -storepass android \
           -keypass android \
-          -dname "CN=Telegram Android, OU=Development, O=Telegram, L=San Francisco, ST=CA, C=US" \
+          -dname "CN=Cherrygram, OU=Development, O=Cherrygram, L=San Francisco, ST=CA, C=US" \
           -noprompt
 
     - name: Update gradle.properties
       run: |
         sed -i 's/RELEASE_STORE_PASSWORD=.*/RELEASE_STORE_PASSWORD=android/' gradle.properties
         sed -i 's/RELEASE_KEY_PASSWORD=.*/RELEASE_KEY_PASSWORD=android/' gradle.properties
-        sed -i 's/RELEASE_KEY_ALIAS=.*/RELEASE_KEY_ALIAS=androidkey/' gradle.properties
+        sed -i 's/RELEASE_KEY_ALIAS=.*/RELEASE_KEY_ALIAS=cherrygramkey/' gradle.properties
 
-    - name: Update BuildVars with your API credentials
+    - name: Set dummy values in Extra.kt (Cherrygram)
       run: |
-        sed -i 's/public static int APP_ID = .*/public static int APP_ID = 26333172;/' TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java
-        sed -i 's/public static String APP_HASH = .*/public static String APP_HASH = "2a031a551da8ca175b0225eac8a2a131";/' TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java
-        
-        # تصحيح اسم التطبيق في BuildVars
-        sed -i 's/public static String APPLICATION_NAME = .*/public static String APPLICATION_NAME = "Telegram";/' TMessagesProj/src/main/java/org/telegram/messenger/BuildVars.java
+        EXTRA_FILE="TMessagesProj/src/main/java/uz/unnarsx/cherrygram/Extra.kt"
+        if [ -f "$EXTRA_FILE" ]; then
+          # تعيين قيم وهمية للمتغيرات المطلوبة - استبدل هذه بقيم حقيقية من Firebase وخدمات أخرى
+          sed -i 's/private const val MAPS_API_KEY = .*/private const val MAPS_API_KEY = "DUMMY_MAPS_API_KEY"/' $EXTRA_FILE
+          sed -i 's/private const val GIPHY_API_KEY = .*/private const val GIPHY_API_KEY = "DUMMY_GIPHY_API_KEY"/' $EXTRA_FILE
+          sed -i 's/private const val WEATHER_API_KEY = .*/private const val WEATHER_API_KEY = "DUMMY_WEATHER_API_KEY"/' $EXTRA_FILE
+          echo "تم تحديث Extra.kt بقيم وهمية"
+        else
+          echo "تحذير: ملف Extra.kt غير موجود"
+        fi
 
-    - name: Build with Gradle and capture errors
+    - name: Create dummy google-services.json
+      run: |
+        # إنشاء ملف google-services.json وهمي لتجنب أخطاء البناء
+        mkdir -p TMessagesProj
+        cat > TMessagesProj/google-services.json << 'EOF'
+        {
+          "project_info": {
+            "project_number": "123456789",
+            "firebase_url": "https://cherrygram-default-rtdb.firebaseio.com",
+            "project_id": "cherrygram-dummy",
+            "storage_bucket": "cherrygram-dummy.appspot.com"
+          },
+          "client": [
+            {
+              "client_info": {
+                "mobilesdk_app_id": "1:123456789:android:abcdef123456",
+                "android_client_info": {
+                  "package_name": "uz.unnarsx.cherrygram"
+                }
+              },
+              "oauth_client": [],
+              "api_key": [
+                {
+                  "current_key": "DUMMY_API_KEY"
+                }
+              ],
+              "services": {
+                "appinvite_service": {
+                  "other_platform_oauth_client": []
+                }
+              }
+            }
+          ],
+          "configuration_version": "1"
+        }
+        EOF
+
+    - name: Build with Gradle
       env:
         RELEASE_STORE_PASSWORD: android
         RELEASE_KEY_PASSWORD: android
-        RELEASE_KEY_ALIAS: androidkey
+        RELEASE_KEY_ALIAS: cherrygramkey
       run: |
-        echo "=== Starting Build ==="
-        # تشغيل البناء مع تفاصيل كاملة وحفظ السجل
-        ./gradlew :TMessagesProj_AppStandalone:assembleRelease --stacktrace --info --no-daemon 2>&1 | tee build.log
-        # إذا فشل البناء، استخرج الخطأ
+        echo "=== بدء بناء Cherrygram ==="
+        # البناء لأحدث إصدار - يمكن تغييره إلى AppStandalone أو AppHuawei حسب الحاجة
+        ./gradlew :TMessagesProj_App:assembleRelease --stacktrace --info --no-daemon 2>&1 | tee build.log
+        
         if [ $? -ne 0 ]; then
-          echo "=== BUILD FAILED ==="
-          echo "=== Extracting error message ==="
+          echo "=== فشل البناء ==="
+          echo "=== استخراج رسائل الخطأ ==="
           grep -A 20 "What went wrong" build.log || true
           grep -A 10 "FAILURE" build.log || true
           grep -B 5 -A 10 "Exception" build.log | head -50 || true
@@ -84,24 +126,25 @@ jobs:
     - name: Find APK files
       if: success()
       run: |
-        echo "Searching for APK files..."
+        echo "البحث عن ملفات APK..."
         find . -name "*.apk" -type f
-        echo "=== APK locations with size ==="
+        echo "=== مواقع APK مع الحجم ==="
         find . -name "*.apk" -type f -exec ls -lh {} \;
 
     - name: Upload APK
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: telegram-apk
+        name: cherrygram-apk
         path: |
+          TMessagesProj_App/build/outputs/apk/**/*.apk
           TMessagesProj_AppStandalone/build/outputs/apk/**/*.apk
-          TMessagesProj/build/outputs/apk/**/*.apk
+          TMessagesProj_AppHuawei/build/outputs/apk/**/*.apk
           **/build/outputs/apk/**/*.apk
 
-    - name: Upload build logs (always)
+    - name: Upload build logs
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: build-logs
+        name: cherrygram-build-logs
         path: build.log
