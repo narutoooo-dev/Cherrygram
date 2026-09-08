@@ -48,28 +48,41 @@ jobs:
           -dname "CN=Cherrygram, OU=Development, O=Cherrygram, L=San Francisco, ST=CA, C=US" \
           -noprompt
 
+    - name: Create secrets_for_ci.env file
+      run: |
+        cat > secrets_for_ci.env << 'EOF'
+        # Keystore
+        RELEASE_STORE_PASSWORD=android
+        RELEASE_KEY_PASSWORD=android
+        RELEASE_KEY_ALIAS=cherrygramkey
+        
+        # API credentials (استبدل بقيم حقيقية عند الحاجة)
+        APP_ID=26333172
+        APP_HASH=2a031a551da8ca175b0225eac8a2a131
+        
+        # Firebase
+        FIREBASE_KEY=DUMMY_FIREBASE_KEY
+        
+        # Maps API
+        MAPS_API_KEY=DUMMY_MAPS_API_KEY
+        
+        # Other APIs
+        GIPHY_API_KEY=DUMMY_GIPHY_API_KEY
+        WEATHER_API_KEY=DUMMY_WEATHER_API_KEY
+        EOF
+        
+        # نسخ الملف إلى موقع آخر إذا كان مطلوباً
+        cp secrets_for_ci.env TMessagesProj/secrets_for_ci.env || true
+        cp secrets_for_ci.env TMessagesProj_App/secrets_for_ci.env || true
+
     - name: Update gradle.properties
       run: |
         sed -i 's/RELEASE_STORE_PASSWORD=.*/RELEASE_STORE_PASSWORD=android/' gradle.properties
         sed -i 's/RELEASE_KEY_PASSWORD=.*/RELEASE_KEY_PASSWORD=android/' gradle.properties
         sed -i 's/RELEASE_KEY_ALIAS=.*/RELEASE_KEY_ALIAS=cherrygramkey/' gradle.properties
 
-    - name: Set dummy values in Extra.kt (Cherrygram)
-      run: |
-        EXTRA_FILE="TMessagesProj/src/main/java/uz/unnarsx/cherrygram/Extra.kt"
-        if [ -f "$EXTRA_FILE" ]; then
-          # تعيين قيم وهمية للمتغيرات المطلوبة - استبدل هذه بقيم حقيقية من Firebase وخدمات أخرى
-          sed -i 's/private const val MAPS_API_KEY = .*/private const val MAPS_API_KEY = "DUMMY_MAPS_API_KEY"/' $EXTRA_FILE
-          sed -i 's/private const val GIPHY_API_KEY = .*/private const val GIPHY_API_KEY = "DUMMY_GIPHY_API_KEY"/' $EXTRA_FILE
-          sed -i 's/private const val WEATHER_API_KEY = .*/private const val WEATHER_API_KEY = "DUMMY_WEATHER_API_KEY"/' $EXTRA_FILE
-          echo "تم تحديث Extra.kt بقيم وهمية"
-        else
-          echo "تحذير: ملف Extra.kt غير موجود"
-        fi
-
     - name: Create dummy google-services.json
       run: |
-        # إنشاء ملف google-services.json وهمي لتجنب أخطاء البناء
         mkdir -p TMessagesProj
         cat > TMessagesProj/google-services.json << 'EOF'
         {
@@ -111,7 +124,6 @@ jobs:
         RELEASE_KEY_ALIAS: cherrygramkey
       run: |
         echo "=== بدء بناء Cherrygram ==="
-        # البناء لأحدث إصدار - يمكن تغييره إلى AppStandalone أو AppHuawei حسب الحاجة
         ./gradlew :TMessagesProj_App:assembleRelease --stacktrace --info --no-daemon 2>&1 | tee build.log
         
         if [ $? -ne 0 ]; then
